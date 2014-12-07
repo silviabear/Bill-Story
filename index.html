@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+	body {
+		font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+		margin: auto;
+		position: relative;
+		width: 960px;
+	}
+
+	form {
+		position: absolute;
+		right: 10px;
+		top: 10px;
+	}
+
+	.node {
+		border: solid 1px white;
+		font: 10px sans-serif;
+		line-height: 12px;
+		overflow: hidden;
+		position: absolute;
+		text-indent: 2px;
+	}
+	body {
+		font: 10px sans-serif;
+	}
+
+	.axis path, .axis line {
+		fill: none;
+		stroke: #FFF;
+		shape-rendering: crispEdges;
+	}
+
+	.bar {
+		fill: steelblue;
+	}
+
+	.x.axis path {
+		display: none;
+	}
+
+	.tooltip {
+		text-anchor: middle;
+		font-family: sans-serif;
+		font-size: 12px;
+		font-weight: bold;
+		fill: green;
+	}
+
+	.node.active {
+		fill: blue;
+	}
+</style>
+<form>
+	<label>
+		<input type="radio" name="mode" value="size" checked onclick = "loader(1)">
+		Total Spending</label>
+	<label>
+		<input type="radio" name="mode" value="count" onclick = "loader(2)">
+		Number of Transaction</label>
+</form>
+<form style = "position:fixed; top:10px; right:30px">
+	<label>
+		<input type="radio" id  = "all" name="mode" value="size" onclick = "loaddata('all')">
+		All Categories</label>
+	<br/>
+	<label>
+		<input type="radio" id = "f"  name="mode" value="size" onclick = "loaddata('f')">
+		Food</label>
+	<br/>
+	<label>
+		<input type="radio" id = "g" name="mode" value="size" onclick = "loaddata('g')" >
+		Gas</label>
+	<br/>
+	<label>
+		<input type="radio" id = "h" name="mode" value="size" onclick = "loaddata('h')">
+		Housing</label>
+	<br/>
+	<label>
+		<input type="radio" id = "r" name="mode" value="size" onclick = "loaddata('r')">
+		Retail</label>
+</form>
+<form style = "position:fixed; top:10px;left:30px;visibility: 'hidden'" id = "transactiontype">
+		<input type="radio" id  = "t_all" name="mode" value="size" onclick = "loaddata('all')">
+		All Transaction</label>
+	<br/>
+	<label>
+		<input type="radio" id = "cpv" name="mode" value="size" onclick = "loaddata('cpv')" >
+			Purchase v. Return in Retail</label>
+</form>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+	window.onload = loader(1);
+	var option = 1;
+	var category = 'none';
+	var color = d3.scale.ordinal().range(["#6b486b", "#a05d56", "#d0743c", "#ff8c00"]);
+
+	function loader(opt) {
+		option = opt;
+		d3.selectAll("svg").transition().duration(800).call(erase);
+		var margin = {
+			top : 40,
+			right : 10,
+			bottom : 10,
+			left : 10
+		};
+		var width = 960 - margin.left - margin.right;
+		var height = 500 - margin.top - margin.bottom;
+		if (option == 1)
+			var treemap = d3.layout.treemap().size([width, height]).sticky(true).value(function(d) {
+				return d.size;
+			});
+		else
+			var treemap = d3.layout.treemap().size([width, height]).sticky(true).value(function(d) {
+				return d.count;
+			});
+if(option == 2){
+			d3.select('#transactiontype').style("visibility", "visible");
+		}
+		else{
+			d3.select('#transactiontype').style("visibility", "hidden");
+		}
+		var div = d3.select("body").append("div").attr("id", "treemap").style("position", "relative").style("width", (width + margin.left + margin.right) + "px").style("height", (height + margin.top + margin.bottom) + "px").style("left", margin.left + "px").style("top", margin.top + "px");
+
+		d3.json("data/fakedata.json", function(error, root) {
+			var node = div.datum(root).selectAll(".node").data(treemap.nodes).enter().append("div").attr("class", "node").call(position).on("click", function(d) {
+				div.transition().duration(500).call(erase);
+				var file = d.name.substr(0,1) + "";
+				loaddata(file);
+			}).style("background", function(d) {
+				return color(d.name);
+			}).text(function(d) {
+				return d.children ? null : d.name;
+			});
+
+			d3.selectAll("input").on("change", function change() {
+				var value = this.value === "count" ? function(d) {
+					return d.count;
+				} : function(d) {
+					return d.size;
+				};
+
+				node.data(treemap.value(value).nodes).transition().duration(400).call(position);
+			});
+		});
+	}
+
+	function loaddata(category) {
+		document.getElementById(category).checked = true;
+		d3.selectAll("svg").transition().duration(400).call(erase);
+		d3.selectAll("#treemap").transition().duration(400).call(erase);
+		var legend_width = 120;
+		var margin = {
+			top : 20,
+			right : 20,
+			bottom : 30,
+			left : 60
+		};
+		var width = 860 - margin.left - margin.right + legend_width;
+		var height = 500 - margin.top - margin.bottom;
+		var x = d3.scale.ordinal().rangeRoundBands([0, width], .1);
+
+		var ySpending = d3.scale.linear()// for absolute scale
+		.rangeRound([height, 0]);
+		var xAxis = d3.svg.axis().scale(x).orient("bottom");
+		var yAxisSpending = d3.svg.axis().scale(ySpending).orient("left").tickFormat(d3.format(".2s"));
+		var svg = d3.select("body").append("svg").attr("width", width + margin.left + margin.right + legend_width).attr("height", height + margin.top + margin.bottom).append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+			d3.csv(option == 1?"data/" + category +".csv" : "data/c_" +category + ".csv", function(error, data) {
+				color.domain(d3.keys(data[0]).filter(function(key) {
+					return key !== "Month";
+				}));
+				data.forEach(function(d) {
+					var month = d.Month;
+					var y0 = 0;
+					d.categories = color.domain().map(function(name) {
+						return {
+							month : month,
+							name : name,
+							y0 : y0,
+							y1 : y0 += +d[name]
+						};
+					});
+					d.total = d.categories[d.categories.length - 1].y1;
+					d.pct = [];
+					for (var i = 0; i < d.categories.length; i++) {
+						var y1 = d.categories[i].y1;
+						var y0 = d.categories[i].y0;
+						var y_pct = y1 - y0;
+						d.pct.push({
+							y1 : y1,
+							y0 : y0,
+							month : month,
+							name : d.categories[i].name,
+							y_pct : y_pct
+						});
+					}
+				});
+				x.domain(data.map(function(d) {
+					return d.Month;
+				}));
+
+				ySpending.domain([0, d3.max(data, function(d) {
+					return d.total;
+				})]);
+				svg.append("g").attr("class", "x axis").attr("transform", "translate(0," + height + ")").call(xAxis);
+
+				var stateSpending = svg.selectAll(".Spending").data(data).enter().append("g").attr("class", "Spending").attr("transform", function(d) {
+					return "translate(" + "0" + ",0)";
+				});
+				stateSpending.selectAll("rect").data(function(d) {
+					return d.pct;
+				}).enter().append("rect").attr("width", x.rangeBand()).attr("y", function(d) {
+
+					return ySpending(d.y1);
+				}).attr("x", function(d) {
+					return x(d.month);
+				}).attr("height", function(d) {
+					return ySpending(d.y0) - ySpending(d.y1);
+				}).attr("fill", function(d) {
+					return color(d.name);
+				}).attr("id", function(d) {
+					return d.month;
+				}).attr("class", "Spending").style("pointer-events", "all");
+				svg.append("g")
+				.attr("class", "y axis Spending").call(yAxisSpending).append("text").attr("transform", "rotate(-90)").attr("y", 6).attr("dy", ".71em").style("text-anchor", "end").text("$ Spent");
+				stateSpending.selectAll("rect").on("mouseover", function(d) {
+					var xPos = parseFloat(d3.select(this).attr("x"));
+					var yPos = parseFloat(d3.select(this).attr("y"));
+					var height = parseFloat(d3.select(this).attr("height"));
+
+					d3.select(this).attr("stroke", "blue").attr("stroke-width", 0.8);
+
+					svg.append("text").attr("x", xPos).attr("y", yPos + height / 2).attr("class", "tooltip").text("$" + Math.floor(d.y_pct) + "in " + d.month);
+
+				}).on("mouseout", function() {
+					svg.select(".tooltip").remove();
+					d3.select(this).attr("stroke", "pink").attr("stroke-width", 0.2);
+
+				});
+				var legend = svg.selectAll(".legend").data(color.domain().slice().reverse()).enter().append("g").attr("class", "legend").attr("transform", function(d, i) {
+					return "translate(0," + i * 20 + ")";
+				});
+
+				legend.append("rect").attr("x", width - 18 + legend_width).attr("width", 18).attr("height", 18).attr("fill", color);
+
+				legend.append("text").attr("x", width - 24 + legend_width).attr("y", 9).attr("dy", ".35em").style("text-anchor", "end").text(function(d) {
+					return d;
+				});
+			});
+		} 
+
+
+	function position() {
+		this.style("left", function(d) {
+			return d.x + "px";
+		}).style("top", function(d) {
+			return d.y + "px";
+		}).style("width", function(d) {
+			return Math.max(0, d.dx - 1) + "px";
+		}).style("height", function(d) {
+			return Math.max(0, d.dy - 1) + "px";
+		});
+	}
+
+	function erase() {
+		this.style("opacity", 0);
+		this.remove();
+	}
+
+
+</script>
